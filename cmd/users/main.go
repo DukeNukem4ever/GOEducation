@@ -9,8 +9,6 @@ import (
 	"os"
 )
 
-var userData = make(map[string]user)
-
 type user struct {
 	Name  string `json:"name"`
 	Hobby string `json:"hobby"`
@@ -18,6 +16,8 @@ type user struct {
 }
 
 func main() {
+	var storage UserStorage
+	storage = NewStorage()
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
 		body, err := io.ReadAll(r.Body)
@@ -52,11 +52,11 @@ func main() {
 				fmt.Fprintf(w, "error: %s", err)
 				return
 			}
-			userData[oneUser.Name] = oneUser
-			fmt.Fprintf(w, "success, total users: %d", len(userData))
+			storage.Set(oneUser)
+			fmt.Fprintf(w, "success, total users: %d", storage.Size())
 		case http.MethodGet:
 			userName := r.URL.Query().Get("user")
-			u, ok := userData[userName]
+			u, ok := storage.Get(userName)
 			if !ok {
 				w.WriteHeader(http.StatusNotFound)
 				fmt.Fprintf(w, "user %s not found", userName)
@@ -76,15 +76,15 @@ func main() {
 	http.HandleFunc("/user/changehobby/", func(w http.ResponseWriter, r *http.Request) {
 		userName := r.URL.Query().Get("user")
 		userHobby := r.URL.Query().Get("hobby")
-		u, ok := userData[userName]
+		u, ok := storage.Get(userName)
 		if !ok {
 			w.WriteHeader(http.StatusNotFound)
 			fmt.Fprintf(w, "user %s not found", userName)
 			return
 		}
 		u.Hobby = userHobby
-		userData[userName] = u
-		fmt.Fprintf(w, "success, total users: %d", len(userData))
+		storage.Set(u)
+		fmt.Fprintf(w, "success, total users: %d", storage.Size())
 	})
 
 	fmt.Printf("%v", os.Args[1:])
@@ -93,4 +93,56 @@ func main() {
 	if err != nil {
 		fmt.Println(err.Error())
 	}
+}
+
+type UserStorage interface {
+	Get(UserName string) (user, bool)
+	Set(u user)
+	Size() int
+}
+
+type MockStorage struct {
+}
+
+func NewMockStorage() *MockStorage {
+	return &MockStorage{}
+}
+
+func (s *MockStorage) Get(UserName string) (user, bool) {
+	return user{
+		Name:  "Artem",
+		Hobby: "Web-Programming",
+		Age:   23,
+	}, true
+}
+
+func (s *MockStorage) Set(u user) {
+}
+
+func (s *MockStorage) Size() int {
+	return 10
+}
+
+type Storage struct {
+	data map[string]user
+}
+
+func NewStorage() *Storage {
+	return &Storage{
+		data: make(map[string]user),
+	}
+}
+
+func (s *Storage) Get(UserName string) (user, bool) {
+	u, b := s.data[UserName]
+	return u, b
+}
+
+func (s *Storage) Set(u user) {
+	s.data[u.Name] = u
+
+}
+
+func (s *Storage) Size() int {
+	return len(s.data)
 }
